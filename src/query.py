@@ -36,9 +36,11 @@ class Searcher:
         
         if api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
+            # Use 1.5-flash for better stability in the free tier
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
         else:
             self.model = None
+
 
     def get_total_documents(self) -> int:
         """Get total count of chunks/documents in the index."""
