@@ -123,6 +123,10 @@ if query_text:
 # System Status
 st.sidebar.markdown("---")
 if os.path.exists(config.FAISS_INDEX_PATH):
-    st.sidebar.success(f"✅ System Ready ({len(all_sources)} Sources)")
+    total_docs = searcher.get_total_documents()
+    st.sidebar.success(f"✅ System Ready")
+    st.sidebar.info(f"📁 **Documenti**: {total_docs} frammenti")
+    st.sidebar.info(f"🎙️ **Podcast**: {len(all_sources)} fonti")
 else:
     st.sidebar.error("❌ Database Missing")
+

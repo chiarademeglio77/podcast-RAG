@@ -10,6 +10,7 @@ import re
 from typing import List, Dict, Optional, Tuple
 import google.generativeai as genai
 from dotenv import load_dotenv
+import streamlit as st
 
 load_dotenv()
 
@@ -25,13 +26,25 @@ class Searcher:
         else:
             self.vector_db = None
         
-        # Configure Gemini
-        api_key = os.getenv("GOOGLE_API_KEY")
+        # Access Google API Key from Environment (.env local) or Secrets (Streamlit Cloud)
+        api_key = os.getenv("GOOGLE_API_KEY") 
+        if not api_key:
+            try:
+                api_key = st.secrets.get("GOOGLE_API_KEY")
+            except Exception:
+                api_key = None
+        
         if api_key:
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel('gemini-2.0-flash')
         else:
             self.model = None
+
+    def get_total_documents(self) -> int:
+        """Get total count of chunks/documents in the index."""
+        if not self.vector_db:
+            return 0
+        return len(self.vector_db.index_to_docstore_id)
 
     def query(self, text: str, k: int = 10, filters: Optional[Dict] = None):
         """Search for relevant documents with keyword boosting for titles."""
@@ -72,7 +85,7 @@ class Searcher:
     def synthesize_answer(self, query: str, contexts: List[any]) -> str:
         """Use Gemini to filter ads and synthesize a coherent answer."""
         if not self.model:
-            return "Errore: Google API Key non configurata."
+            return "Errore: Google API Key non configurata. Configurala nei Secrets di Streamlit Cloud."
         
         if not contexts:
             return "Non ho trovato informazioni pertinenti."
