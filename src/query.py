@@ -36,8 +36,9 @@ class Searcher:
         
         if api_key:
             genai.configure(api_key=api_key)
-            # Use stable 1.5-flash identifier
-            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            # Use gemini-1.5-flash (standard stable name)
+            # and wrap synthesis in a robust fallback
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
         else:
             self.model = None
 
@@ -85,28 +86,27 @@ class Searcher:
         return [res[0] for res in ranked_results[:k]]
 
     def synthesize_answer(self, query: str, contexts: List[any]) -> str:
-        """Use Gemini to filter ads and synthesize a coherent answer."""
-        if not self.model:
-            return "Errore: Google API Key non configurata. Configurala nei Secrets di Streamlit Cloud."
-        
+        """Use Gemini to filter ads and synthesize a coherent answer. Falls back to raw text if AI fails."""
         if not contexts:
             return "Non ho trovato informazioni pertinenti."
-
+            
         # Prepare context text with metadata labels
         context_text = ""
         for i, doc in enumerate(contexts):
             context_text += f"\n--- DOCUMENT {i+1} (Source: {doc.metadata.get('source')}, Date: {doc.metadata.get('date')}) ---\n"
             context_text += doc.page_content + "\n"
 
+        if not self.model:
+            return "⚠️ AI Offline (Chiave mancante). Ecco i frammenti trovati:\n\n" + context_text[:1000] + "..."
+
         prompt = f"""
 Sei un assistente esperto. Il tuo compito è rispondere alla domanda dell'utente basandoti ESCLUSIVAMENTE sui frammenti di testo forniti sotto.
 
 REGOLE STRETTE:
-1. PULIZIA AUTOMATICA: Riconosci ed elimina assolutamente ogni segmento che sembra un annuncio pubblicitario, sponsorizzazione o promozione (es. Philip Morris, carte di credito, promozioni di altri podcast, broker, ecc.).
-2. RERANKING: Usa SOLO i frammenti che parlano realmente del soggetto richiesto. Ignora quelli irrilevanti.
-3. SINTESI ORGANICA: Riassumi in modo coerente e discorsivo le informazioni. Non limitarti a copiare e incollare.
-4. STRICT CONTEXT: Se nei documenti non c'è una risposta chiara al soggetto richiesto, rispondi ESATTAMENTE con: 'Non ho trovato informazioni pertinenti'. Non provare a inventare nulla usando la pubblicità o conoscenze esterne.
-5. LINGUA: Rispondi in Italiano.
+1. PULIZIA AUTOMATICA: Riconosci ed elimina assolutamente ogni segmento che sembra un annuncio pubblicitario o promozione.
+2. RERANKING: Usa SOLO i frammenti pertinenti.
+3. SINTESI ORGANICA: Riassumi in modo coerente in Italiano.
+4. Se non c'è risposta, di': 'Non ho trovato informazioni pertinenti'.
 
 TESTI FORNITI:
 {context_text}
@@ -117,9 +117,17 @@ RISPOSTA ORGANICA:
 """
         try:
             response = self.model.generate_content(prompt)
-            return response.text.strip()
+            # Check for candidate presence to avoid errors
+            if response.candidates:
+                return response.text.strip()
+            return "⚠️ Gemini non ha prodotto una risposta (possibile blocco contenuti). Controlla le citazioni sotto."
         except Exception as e:
-            return f"Errore durante la sintesi AI: {str(e)}"
+            # FALLBACK: If AI fails, don't show an error, show a basic concatenation of the most relevant bits
+            fallback_msg = "⚠️ Sintesi AI temporaneamente non disponibile (Errore Tecnico). Visualizzazione frammenti estratti:\n\n"
+            for doc in contexts[:3]:
+                fallback_msg += f"- {doc.page_content[:200]}...\n"
+            return fallback_msg
+
 
     def get_all_sources(self) -> List[str]:
         """Extract unique podcast sources from the index metadata."""
