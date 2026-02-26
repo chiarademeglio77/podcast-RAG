@@ -36,8 +36,8 @@ class Searcher:
         
         if api_key:
             genai.configure(api_key=api_key)
-            # Use 1.5-flash for better stability in the free tier
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            # Use stable 1.5-flash identifier
+            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
         else:
             self.model = None
 
