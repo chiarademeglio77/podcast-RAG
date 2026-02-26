@@ -2,6 +2,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 import src.config as config
 import os
+import re
 from typing import List, Dict, Optional
 
 class Searcher:
@@ -16,28 +17,52 @@ class Searcher:
         else:
             self.vector_db = None
 
-    def query(self, text: str, k: int = 5, filters: Optional[Dict] = None):
-        """Search for relevant documents with optional metadata filtering."""
+    def query(self, text: str, k: int = 10, filters: Optional[Dict] = None):
+        """Search for relevant documents with keyword boosting for titles."""
         if not self.vector_db:
             return []
         
-        # In FAISS, filtering is typically done post-retrieval for simplicity in light loads
-        # However, we can use metadata filter if specific keys are provided
-        results = self.vector_db.similarity_search(text, k=k*2) # Retrieve more to allow for filtering
+        # 1. Retrieve more candidates than requested to allow for re-ranking
+        initial_k = k * 3
+        results_with_scores = self.vector_db.similarity_search_with_score(text, k=initial_k)
         
-        if filters:
-            filtered_results = []
-            for res in results:
+        # 2. Extract words from query for boosting
+        query_words = set(re.findall(r'\w+', text.lower()))
+        
+        ranked_results = []
+        for doc, score in results_with_scores:
+            # Apply metadata filters first
+            if filters:
                 match = True
                 for key, value in filters.items():
-                    if key in res.metadata and res.metadata[key] != value:
+                    if key in doc.metadata and doc.metadata[key] != value:
                         match = False
                         break
-                if match:
-                    filtered_results.append(res)
-            return filtered_results[:k]
+                if not match:
+                    continue
+
+            # 3. Calculate Boost Score
+            # If query keywords are in the Title or Filename, we lower the "score" 
+            # (since lower score = more relevant in vector search distance)
+            boost = 0
+            title = doc.metadata.get('title', '').lower()
+            filename = doc.metadata.get('filename', '').lower()
+            
+            for word in query_words:
+                if len(word) > 3: # Only boost non-trivial words
+                    if word in title or word in filename:
+                        boost += 0.2 # Substantial boost percentage
+            
+            # Adjusted score (FAISS distance - boost)
+            final_score = score - boost
+            ranked_results.append((doc, final_score))
+
+        # 4. Sort by the new boosted score
+        ranked_results.sort(key=lambda x: x[1])
         
-        return results[:k]
+        # Return only the documents
+        return [res[0] for res in ranked_results[:k]]
+
 
     def get_all_sources(self) -> List[str]:
         """Extract unique sources from the index metadata."""
