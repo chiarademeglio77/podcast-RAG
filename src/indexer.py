@@ -73,12 +73,22 @@ class Indexer:
             metadata["filename"] = filename
             metadata["source_path"] = filepath
             
-            # Load content
+            # Load content with robust encoding handling
+            content = None
+            for enc in ['utf-8', 'gbk', 'utf-16', 'latin-1']:
+                try:
+                    with open(filepath, 'r', encoding=enc) as f:
+                        content = f.read()
+                    break # Success
+                except Exception:
+                    continue
+            
+            if content is None:
+                print(f"Skipping {filename}: Could not decode with any supported encoding.")
+                continue
+
+            # Create LangChain documents
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    
-                # Create LangChain documents manually to inject metadata
                 doc_chunks = self.text_splitter.create_documents(
                     [content], 
                     metadatas=[metadata]
@@ -86,6 +96,7 @@ class Indexer:
                 all_documents.extend(doc_chunks)
             except Exception as e:
                 print(f"Error processing {filename}: {e}")
+
 
         if not all_documents:
             print("No documents were successfully processed.")

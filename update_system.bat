@@ -4,6 +4,7 @@ echo   RAG System Update ^& Sync Automation
 echo ========================================
 
 echo 1. Running Indexer...
+git config core.longpaths true
 python -m src.indexer
 
 if %ERRORLEVEL% NEQ 0 (
