@@ -13,7 +13,7 @@ st.set_page_config(
 
 # Initialize searcher with cache clearing capability
 @st.cache_resource
-def get_searcher(cache_key=0):
+def get_searcher():
     return Searcher()
 
 # Sidebar for Filters and Cache
@@ -39,14 +39,19 @@ date_range = st.sidebar.date_input(
 st.sidebar.markdown("---")
 st.sidebar.header("⚡ Preset Actions")
 
+# Handle Daily Summary via Synthesis
 if st.sidebar.button("📊 Daily Summary", help="Summarize top 3 most recent articles"):
     recent_docs = searcher.get_recent_documents(n=3)
     if recent_docs:
-        st.subheader("📋 Recent Daily Summary")
-        for doc in recent_docs:
-            with st.expander(f"**{doc.metadata.get('date', 'N/A')}** - {doc.metadata.get('source', 'N/A')}: *{doc.metadata.get('title', 'N/A')}*"):
-                st.write(doc.page_content[:500] + "...")
-                st.info(f"Source: {doc.metadata.get('source')} | Date: {doc.metadata.get('date')}")
+        with st.spinner("Generating summary of recent news..."):
+            summary = searcher.synthesize_answer("Cosa è successo di importante negli ultimi articoli caricati?", recent_docs)
+            st.subheader("📋 Analisi AI: Riepilogo Recente")
+            st.markdown(summary)
+            
+            with st.expander("Vedi fonti originali"):
+                for doc in recent_docs:
+                    st.write(f"**{doc.metadata.get('date', 'N/A')}** - {doc.metadata.get('source', 'N/A')}: *{doc.metadata.get('title', 'N/A')}*")
+                    st.info(doc.page_content[:300] + "...")
     else:
         st.warning("No recent documents found.")
 
@@ -64,29 +69,29 @@ preset_query = st.sidebar.selectbox(
 # Main Search Logic
 st.title("🎙️ RAG Article Assistant")
 st.markdown("---")
-st.subheader("💬 Ask a Question")
-query_text = st.text_input("", placeholder="Type your query here...")
+st.subheader("💬 Chiedi all'AI")
+query_text = st.text_input("", placeholder="Cosa dice Anthropic riguardo all'educazione?")
 
 # Handle Preset Query selection
 if preset_query != "Select a question...":
     query_text = preset_query
 
 if query_text:
-    with st.spinner("Analyzing articles..."):
-        # Build filters dictionary
+    with st.spinner("Analizzando i documenti e filtrando le pubblicità..."):
+        # 1. Retrieve fragments
         filters = {}
         if selected_source != "All":
             filters["source"] = selected_source
             
-        results = searcher.query(query_text, k=10, filters=filters)
+        raw_results = searcher.query(query_text, k=10, filters=filters)
         
-        if results:
-            filtered_results = []
-            # Safety check for date_range length
+        if raw_results:
+            # Filter by date range manually
             start_date = date_range[0] if isinstance(date_range, (list, tuple)) else date_range
             end_date = date_range[1] if isinstance(date_range, (list, tuple)) and len(date_range) > 1 else date.today()
 
-            for res in results:
+            valid_results = []
+            for res in raw_results:
                 doc_date_str = res.metadata.get('date', 'unknown')
                 if doc_date_str != 'unknown':
                     try:
@@ -95,23 +100,25 @@ if query_text:
                             continue
                     except Exception:
                         pass
-                filtered_results.append(res)
+                valid_results.append(res)
 
-            if filtered_results:
-                st.markdown(f"### Found {len(filtered_results)} relevant citations:")
-                for i, res in enumerate(filtered_results[:5]):
-                    st.markdown(f"""
-                    ---
-                    #### CITATION {i+1}
-                    **Source:** {res.metadata.get('source')} | **Date:** {res.metadata.get('date')}
-                    **Title:** {res.metadata.get('title')}
-                    
-                    {res.page_content}
-                    """)
+            if valid_results:
+                # 2. Synthesize organic answer
+                organic_answer = searcher.synthesize_answer(query_text, valid_results)
+                
+                st.markdown("### 🤖 Analisi AI")
+                st.info(organic_answer)
+                
+                # 3. Show citations in collapsible section
+                with st.expander("🔍 Vedi Citazioni e Fonti (Dati Grezzi)"):
+                    for i, res in enumerate(valid_results):
+                        st.markdown(f"**FONTE {i+1}**: {res.metadata.get('source')} ({res.metadata.get('date')}) - *{res.metadata.get('title')}*")
+                        st.write(res.page_content)
+                        st.markdown("---")
             else:
-                st.info("No documents match your query within the selected date range.")
+                st.info("Nessun documento trovato nel periodo selezionato.")
         else:
-            st.info("No documents match your query and filters.")
+            st.info("Nessun documento trovato per questa ricerca.")
 
 # System Status
 st.sidebar.markdown("---")

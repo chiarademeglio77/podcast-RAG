@@ -4,10 +4,10 @@ faiss-cpu
 
 sentence-transformers
 watchdog
+google-generativeai
 python-dotenv
 tqdm
 pypdf
 langchain-huggingface
 langchain-text-splitters
 streamlit
-
