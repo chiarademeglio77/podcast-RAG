@@ -1,0 +1,13 @@
+langchain
+langchain-community
+faiss-cpu
+
+sentence-transformers
+watchdog
+python-dotenv
+tqdm
+pypdf
+langchain-huggingface
+langchain-text-splitters
+streamlit
+

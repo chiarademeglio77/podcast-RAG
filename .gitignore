@@ -1,0 +1,18 @@
+# Python 
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv/
+ENV/
+env/
+.env
+
+# Data & Database (Chroma/FAISS)
+# We WANT to include the faiss_index but NOT necessarily the raw articles if they are private.
+# If you want the articles online, comment out the line below.
+# data/articles/
+
+# OS
+.DS_Store
+Thumbs.db
