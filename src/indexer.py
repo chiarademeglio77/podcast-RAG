@@ -1,3 +1,7 @@
+import warnings
+# Suppress the harmless Pydantic V1 warning for Python 3.14
+warnings.filterwarnings("ignore", message="Core Pydantic V1 functionality isn't compatible with Python 3.14")
+
 import os
 import hashlib
 import re
@@ -10,13 +14,16 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from tqdm import tqdm
 import src.config as config
 
+
 class Indexer:
     def __init__(self):
+        print("Initializing Embedding Model... (this may take a minute on first run)")
         self.embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL_NAME)
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=100
         )
+        # Handle DD-MM-YY naming
         self.filename_regex = re.compile(r"^(\d{2}-\d{2}-\d{2})_(.*?)_(.*)\.txt$")
 
     def parse_filename(self, filename: str) -> Dict:
@@ -25,12 +32,17 @@ class Indexer:
         if match:
             date_str, source, title = match.groups()
             try:
-                # Convert YY-MM-DD to datetime object
-                date_dt = datetime.strptime(date_str, "%y-%m-%d")
-                # Store as timestamp (string) for FAISS/JSON compatibility
+                # Based on user example '31-01-26' -> DD-MM-YY
+                date_dt = datetime.strptime(date_str, "%d-%m-%y")
                 date_iso = date_dt.date().isoformat()
             except ValueError:
-                date_iso = "unknown"
+                # Try fallback YY-MM-DD
+                try:
+                    date_dt = datetime.strptime(date_str, "%y-%m-%d")
+                    date_iso = date_dt.date().isoformat()
+                except ValueError:
+                    date_iso = "unknown"
+
             
             return {
                 "date": date_iso,
