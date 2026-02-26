@@ -121,7 +121,19 @@ RISPOSTA ORGANICA:
         except Exception as e:
             return f"Errore durante la sintesi AI: {str(e)}"
 
+    def get_all_sources(self) -> List[str]:
+        """Extract unique podcast sources from the index metadata."""
+        if not self.vector_db:
+            return []
+        sources = set()
+        for doc_id in self.vector_db.index_to_docstore_id.values():
+            doc = self.vector_db.docstore.search(doc_id)
+            if doc and 'source' in doc.metadata:
+                sources.add(doc.metadata['source'])
+        return sorted(list(sources))
+
     def get_all_filenames(self) -> List[str]:
+
         """Extract unique filenames from the index metadata."""
         if not self.vector_db:
             return []
