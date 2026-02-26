@@ -123,10 +123,24 @@ if query_text:
 # System Status
 st.sidebar.markdown("---")
 if os.path.exists(config.FAISS_INDEX_PATH):
+    all_filenames = searcher.get_all_filenames()
     total_docs = searcher.get_total_documents()
-    st.sidebar.success(f"✅ System Ready")
-    st.sidebar.info(f"📁 **Documenti**: {total_docs} frammenti")
-    st.sidebar.info(f"🎙️ **Podcast**: {len(all_sources)} fonti")
+    
+    st.sidebar.success(f"✅ Sistema Online")
+    st.sidebar.info(f"📄 **Articoli**: {len(all_filenames)} file caricati")
+    st.sidebar.info(f"🎙️ **Podcast**: {len(all_sources)} canali diversi")
+    st.sidebar.info(f"🧩 **Database**: {total_docs} frammenti analizzabili")
+    
+    # Check for API Key presence for user feedback
+    has_api_key = False
+    if searcher.model:
+        has_api_key = True
+    
+    if not has_api_key:
+        st.sidebar.warning("⚠️ AI Disattivata: Inserisci la Google API Key nei 'Secrets' di Streamlit.")
+    else:
+        st.sidebar.caption("✨ AI Synthesis Attiva (Gemini 1.5 Flash)")
 else:
-    st.sidebar.error("❌ Database Missing")
+    st.sidebar.error("❌ Database Mancante")
+
 
